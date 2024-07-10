@@ -23,18 +23,29 @@ variable "worker" {
   default = [ "coreos-worker-01", "coreos-worker-02" ]
 }
 
+locals {
+  vcpu_master = 4
+  ram_master = 4096
+  vcpu_worker = 6
+  ram_worker = 8192
+  network = "10.10.10"
+  dns_forward = "192.168.100.15"
+}
+
+# ============================================
+
 # Setup network
 
 resource "libvirt_network" "kube_network" {
   name = "core-k8s"
   mode = "nat"
   domain = "k8s.local"
-  addresses = ["10.10.10.0/24"]
+  addresses = ["${local.network}.0/24"]
   autostart = true
   dns {
     enabled = true
     forwarders {
-      address = "192.168.100.15"
+      address = local.dns_forward
     }
   }
 }
@@ -90,13 +101,13 @@ resource "libvirt_domain" "control_plane" {
   count = length(var.control_plane)
 
   name = var.control_plane[count.index]
-  memory = 4096
-  vcpu = 4
+  memory = local.ram_master
+  vcpu = local.vcpu_master
 
   network_interface {
     network_id = libvirt_network.kube_network.id
     hostname = var.control_plane[count.index]
-    addresses = ["10.10.10.1${count.index}"]
+    addresses = ["${local.network}.1${count.index}"]
   }
 
   disk {
@@ -110,13 +121,13 @@ resource "libvirt_domain" "worker" {
   count = length(var.worker)
 
   name = var.worker[count.index]
-  memory = 4096
-  vcpu = 4
+  memory = local.ram_worker
+  vcpu = local.vcpu_worker
 
   network_interface {
     network_id = libvirt_network.kube_network.id
     hostname = var.worker[count.index]
-    addresses = ["10.10.10.2${count.index}"]
+    addresses = ["${local.network}.2${count.index}"]
   }
 
   disk {
@@ -124,4 +135,5 @@ resource "libvirt_domain" "worker" {
   }
 
   coreos_ignition = libvirt_ignition.user.id
+
 }
